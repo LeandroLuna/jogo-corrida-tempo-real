@@ -1,125 +1,110 @@
-/****************************************
- * Include Libraries
- ****************************************/
- 
-#include "ThreadHandler.h"
-// #include <LiquidCrystal.h> 
-#include <SPI.h>
-#include <Wire.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
+#include <Arduino.h>
+#include <Arduino_FreeRTOS.h>
+// #include <Adafruit_GFX.h>
+// #include <Adafruit_SSD1306.h>
+// #include <SPI.h>
+// #include <Wire.h>
 
-/****************************************
- * Define Constants
- ****************************************/
+// #define SCREEN_WIDTH 128
+// #define SCREEN_HEIGHT 32
+// #define OLED_RESET -1
+// #define SCREEN_ADDRESS 0x3C
+// Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
-const uint8_t PLAYER_ONE_PRIORITY = 0;
-const uint8_t PLAYER_TWO_PRIORITY = 1;
-const uint32_t PERIOD = 1000; // Tempo do processo
-const uint32_t START_OFF_SET = 1000 * (2/10); // Tempo de execução/foco do processo
+const int PLAYER_ONE_BUTTON = 4;
+const int PLAYER_TWO_BUTTON = 3;
 
-// Sensors
-//// Botões
-const uint8_t PUSH_BUTTON_PLAYER_ONE = 4;
-const uint8_t PUSH_BUTTON_PLAYER_TWO = 3;
+const int RED_LED_PIN = 5;
+const int GREEN_LED_PIN = 6;
 
-//// LEDs
-const uint8_t RED_LED_PIN = 5;
-const uint8_t GREEN_LED_PIN = 6;
+const int WIN_CONDITION = 10;
 
-//// LCD 16X2
-// const uint8_t RS = 13, EN = 12, D4 = 11, D5 = 10, D6 = 9, D7 = 8; 
-// LiquidCrystal lcd(RS, EN, D4, D5, D6, D7);              
+volatile int player1Position = 0;
+volatile int player2Position = 0;
 
-//// OLED 128X32
-#define SCREEN_WIDTH 128 
-#define SCREEN_HEIGHT 32 
-#define OLED_RESET -1 
-#define SCREEN_ADDRESS 0x3C 
+unsigned long lastDebounceTime1 = 0;
+unsigned long lastDebounceTime2 = 0;
+const long debounceDelay = 100;
 
-Adafruit_SSD1306 oled(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+void TaskPlayer1(void *pvParameters) {
+  Serial.println("Task Player 1 created!");
+  while(1) {
+    if (digitalRead(PLAYER_ONE_BUTTON) == LOW) {
+      unsigned long currentTime = millis();
+      if ((currentTime - lastDebounceTime1) > debounceDelay) {
+        lastDebounceTime1 = currentTime;
+        if (player1Position < WIN_CONDITION) {
+          player1Position++;
+          Serial.println(player1Position);
+          // updateDisplay();
+        } else {
+          digitalWrite(GREEN_LED_PIN, HIGH);
+        }
+      }
+    }
+  vTaskDelay(10 / portTICK_PERIOD_MS);
+  }
+}
 
-//// THREAD 
-SET_THREAD_HANDLER_TICK(100000) // Intervalo de execução do processador 1ms
-THREAD_HANDLER(InterruptTimer::getInstance()) // Define que será utilizado threads
+void TaskPlayer2(void *pvParameters) {
+  Serial.println("Task Player 2 created!");
+  while(1) {
+    if (digitalRead(PLAYER_TWO_BUTTON) == LOW) {
+      unsigned long currentTime = millis();
+      if ((currentTime - lastDebounceTime2) > debounceDelay) {
+        lastDebounceTime2 = currentTime;
+        if (player2Position < WIN_CONDITION) {
+          player2Position++;
+          Serial.println(player2Position);
+          // updateDisplay();
+        } else {
+          digitalWrite(RED_LED_PIN, HIGH);
+        }
+      }
+    }
+  vTaskDelay(10 / portTICK_PERIOD_MS);
+  }
+}
 
-/****************************************
- * Auxiliar Functions
- ****************************************/
-
-// void racingDisplay(){
-//   lcd.clear();
-//   lcd.setCursor(0, 0);            
-//   lcd.print("Leandro");   
-//   lcd.setCursor(0, 1);            
-//   lcd.print("Luna");
-//   delay(1000);       
+// void TaskUpdateDisplay(void *pvParameters) {
+//   Serial.println("Task Update Display created!");
+//   while(1) {
+//     display.clearDisplay();
+//     display.setTextSize(1);
+//     display.setTextColor(SSD1306_WHITE);
+//     display.setCursor(6 * player1Position, 0);
+//     display.print("P1");
+//     display.setCursor(6 * player2Position, 10);
+//     display.print("P2");
+//     display.display();
+//   }
+//   vTaskDelay(10000 / portTICK_PERIOD_MS);
 // }
 
-void scoreDisplay(){
-  oled.clearDisplay();
-  oled.setTextSize(1); 
-  oled.setTextColor(1); 
-  oled.setCursor(2, 8); 
-  oled.print("Leandro Luna");
-  oled.display();
-}
-
-void readButton(){
-  if (digitalRead(PUSH_BUTTON_PLAYER_ONE) == LOW){
-    Serial.println("Player one clicked");
-  }
-
-  if (digitalRead(PUSH_BUTTON_PLAYER_TWO) == LOW){
-    Serial.println("Player two clicked");
-  }
-}
-
-void player1(){
-  scoreDisplay();
-  digitalWrite(RED_LED_PIN, HIGH);
-  Serial.println("RED Led ON");
-  delay(1000);
-  digitalWrite(RED_LED_PIN, LOW);
-  Serial.println("RED Led OFF");
-  delay(1000);
-}
-
-void player2(){
-  readButton();
-  digitalWrite(GREEN_LED_PIN, HIGH);
-  Serial.println("Green Led ON");
-  delay(1000);
-  digitalWrite(GREEN_LED_PIN, LOW);
-  Serial.println("Green Led OFF");
-  delay(1000);
-}
-
-Thread* thread1 = createThread(PLAYER_ONE_PRIORITY, PERIOD, START_OFF_SET, player1);
-Thread* thread2 = createThread(PLAYER_TWO_PRIORITY, PERIOD, START_OFF_SET, player2);
-
-/****************************************
- * Main Functions
- ****************************************/
-
 void setup() {
-  ThreadHandler::getInstance()->enableThreadExecution(); // Habilita a execução das threads
-  Serial.begin(115200);
-  
   pinMode(RED_LED_PIN, OUTPUT);
   pinMode(GREEN_LED_PIN, OUTPUT);
-  pinMode(PUSH_BUTTON_PLAYER_ONE, INPUT_PULLUP); 
-  pinMode(PUSH_BUTTON_PLAYER_TWO, INPUT_PULLUP);
-  
-  // lcd.begin(16, 2);
+  pinMode(PLAYER_ONE_BUTTON, INPUT_PULLUP);
+  pinMode(PLAYER_TWO_BUTTON, INPUT_PULLUP);
 
-  if(!oled.begin(SSD1306_SWITCHCAPVCC)) {
-    for(;;);
+  Serial.begin(9600);
+  // if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
+  //   Serial.println(F("SSD1306 allocation failed"));
+  //   for (;;);
+  // }
+  // display.clearDisplay();
+  // display.display();
+  // updateDisplay();
+
+  BaseType_t task1Status = xTaskCreate(TaskPlayer1, "TaskPlayer1", 128, NULL, 1, NULL);
+  BaseType_t task2Status = xTaskCreate(TaskPlayer2, "TaskPlayer2", 128, NULL, 1, NULL);
+  // BaseType_t task3Status = xTaskCreate(TaskUpdateDisplay, "TaskUpdateDisplay", 128, NULL, 1, NULL);
+
+  if (task1Status != pdPASS || task2Status != pdPASS) {
+    Serial.println("Task creation failed!");
   }
-
-  oled.display();
-  delay(2000);
 }
 
 void loop() {
+  // Do nothing here, tasks are running
 }
