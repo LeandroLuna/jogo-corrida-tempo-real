@@ -12,6 +12,8 @@ Este é um jogo interativo simples desenvolvido para dois jogadores, utilizando 
 
 ## Esquemático (Wokwi)
 
+![Esquemático](https://github.com/LeandroLuna/jogo-corrida-tempo-real/assets/29809108/2db57452-44d2-4b90-8073-012194e61727)
+
 ## Estrutura do Jogo
 
 - **Mecânica da corrida**: os jogadores usam seus botões para avançar seus carros no display da corrida. Cada pressão do botão move seu carro uma posição para frente, sendo controlado através de tarefas separadas no FreeRTOS que monitoram os estados dos botões.
